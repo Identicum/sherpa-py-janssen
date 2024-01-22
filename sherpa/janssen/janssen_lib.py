@@ -25,7 +25,7 @@ class ConfigAPIClient:
         self.oidc_client = OIDCClient(self.base_uri, logger, verify=False)
         self.temp_dir = './work'
         shutil.rmtree(self.temp_dir, ignore_errors=True)
-        os.mkdir(self.temp_dir, 0o666)
+        os.mkdir(self.temp_dir, 0o744)
 
     def _execute_with_json_response(self, operation, endpoint, scopes, json_obj={}):
         self.logger.debug('{} {}', operation, endpoint)
