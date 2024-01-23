@@ -39,22 +39,25 @@ class ConfigAPIClient:
             'scope': scopes
         }
         acc_token = self.oidc_client.request_to_token_endpoint(b64_creds, params).get('access_token')
-        self.logger.trace('acc_token is {}', acc_token)
-        self.logger.trace('setting headers for operation')
         content_type = 'application/json' if operation != 'PATCH' else 'application/json-patch+json'
         headers = {
             'Authorization': 'Bearer {}'.format(acc_token),
             'Content-Type': content_type
         }
-        self.logger.trace('request body - dump json_obj')
         body = json.dumps(json_obj)
-        self.logger.trace('execute http request')
-        response = requests.request(operation, url, headers=headers, data=body, verify=False)
+        self.logger.trace('OPERATION: {}, URL: {}, HEADERS: {}, DATA: {}', operation, url, headers, body)
+        if operation == 'GET':
+            response = requests.request(operation, url, headers=headers, verify=False)
+        else:
+            response = requests.request(operation, url, headers=headers, data=body, verify=False)
         http.validate_response(response, self.logger, 'Execute Failed - HTTP Code: {}'.format(response.status_code))
         json_obj = {} if operation == 'DELETE' else response.json()
-        self.logger.debug('{} JSON response - {}', operation, json_obj)
+        self.logger.trace('{} JSON response - {}', operation, json_obj)
         return json_obj
 
+    def _get_object(self, endpoint, inum, scopes):
+        return self._execute_with_json_response("GET", endpoint, scopes)
+        
     def _get_files_path(self, objects_folder, extension='.json'):
         files = list()
         for directory_entry in sorted(os.scandir(objects_folder), key=lambda path: path.name):
@@ -120,16 +123,19 @@ class ConfigAPIClient:
                 json_data = self._customize_for_endpoint(endpoint, objects_folder, file_path, json_data)
                 jans_obj = {}
                 try:
+                    self.logger.debug('GETting object: {}', query_endpoint)
                     jans_obj = self._execute_with_json_response('GET', query_endpoint, scopes)
                 except:
-                    self.logger.debug("object {} not present in jans", inum)
+                    self.logger.debug("Object {} not present in jans", query_endpoint)
                 if jans_obj != {}:
-                    self.logger.debug('PUT obj {}', inum)
+                    self.logger.debug('Current object: {}', jans_obj)
                     jans_obj.update(json_data)
+                    self.logger.debug('Updated object: {}', jans_obj)
                     self._clean_json(endpoint, jans_obj)
+                    self.logger.debug('PUTting clean object: {}', jans_obj)
                     self._execute_with_json_response('PUT', endpoint, scopes, jans_obj)
                 else:
-                    self.logger.debug('POST obj {}', inum)
+                    self.logger.debug('POSTing object: {} to endpoint: {}', json_data, endpoint)
                     self._execute_with_json_response('POST', endpoint, scopes, json_data)
 
     def _build_query_endpoint(self, endpoint, inum):
@@ -198,6 +204,12 @@ class ConfigAPIClient:
 # Always take the obj which name attr is equal to the json file value.
 ############################
 
+    def get_scope(self, inum):
+        self.logger.debug('Getting scope {}', inum)
+        endpoint = '/jans-config-api/api/v1/scopes'
+        scopes = 'https://jans.io/oauth/config/scopes.readonly'
+        self._get_object(endpoint, inum, scopes)
+
     def import_scopes(self, objects_folder):
         self.logger.debug('Import scopes from {}', objects_folder)
         endpoint = '/jans-config-api/api/v1/scopes'
@@ -217,8 +229,14 @@ class ConfigAPIClient:
 # scopes can be a valid inum, or the scope id value (this value also must be defined on scope displayName definition)
 ############################
 
+    def get_client(self, inum):
+        self.logger.debug('Getting client {}', inum)
+        endpoint = '/jans-config-api/api/v1/openid/clients/' + inum
+        scopes = 'https://jans.io/oauth/config/openid/clients.readonly'
+        self._get_object(endpoint, inum, scopes)
+
     def import_clients(self, objects_folder):
-        self.logger.debug('Import clients from {}', objects_folder)
+        self.logger.debug('!!!Import clients from {}', objects_folder)
         endpoint = '/jans-config-api/api/v1/openid/clients'
         scopes = 'https://jans.io/oauth/config/openid/clients.readonly https://jans.io/oauth/config/openid/clients.write'
         self._import_obj_by_inum(endpoint, scopes, objects_folder)
