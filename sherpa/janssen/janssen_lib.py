@@ -236,7 +236,7 @@ class ConfigAPIClient:
         self._get_object(endpoint, inum, scopes)
 
     def import_clients(self, objects_folder):
-        self.logger.debug('!!!Import clients from {}', objects_folder)
+        self.logger.debug('Import clients from {}', objects_folder)
         endpoint = '/jans-config-api/api/v1/openid/clients'
         scopes = 'https://jans.io/oauth/config/openid/clients.readonly https://jans.io/oauth/config/openid/clients.write'
         self._import_obj_by_inum(endpoint, scopes, objects_folder)
