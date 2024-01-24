@@ -80,8 +80,8 @@ class ConfigAPIClient:
             with open(file_path) as json_file:
                 json_data = self._load_json(json_file)
                 inum = Path(file_path).stem
-                endpoint = '{}/{}'.format(endpoint, inum) if inum_patch else endpoint
-                self._execute_with_json_response('PATCH', endpoint, scopes, json_data)
+                query_endpoint = '{}/{}'.format(endpoint, inum) if inum_patch else endpoint
+                self._execute_with_json_response('PATCH', query_endpoint, scopes, json_data)
 
     def _query_by_pattern(self, endpoint, scopes, key, key_val):
         query_endpoint = '{}?pattern={}'.format(endpoint,key_val)
