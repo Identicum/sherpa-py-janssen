@@ -121,19 +121,31 @@ class ConfigAPIClient:
                 inum = json_data.get('inum')
                 query_endpoint = self._build_query_endpoint(endpoint, inum)
                 json_data = self._customize_for_endpoint(endpoint, objects_folder, file_path, json_data)
-                jans_obj = {}
+                current_jans_obj = {}
                 try:
                     self.logger.debug('GETting object: {}', query_endpoint)
-                    jans_obj = self._execute_with_json_response('GET', query_endpoint, scopes)
+                    current_jans_obj = self._execute_with_json_response('GET', query_endpoint, scopes)
                 except:
                     self.logger.debug("Object {} not present in jans", query_endpoint)
-                if jans_obj != {}:
-                    self.logger.debug('Current object: {}', jans_obj)
-                    jans_obj.update(json_data)
-                    self.logger.debug('Updated object: {}', jans_obj)
-                    self._clean_json(endpoint, jans_obj)
-                    self.logger.debug('PUTting clean object: {}', jans_obj)
-                    self._execute_with_json_response('PUT', endpoint, scopes, jans_obj)
+                if current_jans_obj != {}:
+                    self.logger.debug('Current object: {}', current_jans_obj)
+                    patch_operation = []
+                    for attributeName, attributeValue in json_data.items():
+                        self.logger.debug('Attr {} with Value {} Type {}', attributeName, attributeValue, type(attributeValue))
+                        if current_jans_obj[attributeName] != attributeValue:
+                            if type(attributeValue) is dict:
+                                for childName, childValue in json_data["attributes"].items():
+                                    self.logger.debug('Attributes section. Key {} Value {}', childName, childValue)
+                                    op = dict(op="replace", path="/"+attributeName+"/"+childName, value=childValue)
+                                    patch_operation.append(op)
+                            else:
+                                op = dict(op="replace", path="/"+attributeName, value=attributeValue)
+                                patch_operation.append(op)
+                    if len(patch_operation) > 0:
+                        self.logger.debug('The operations patch is {}', patch_operation)
+                        self._execute_with_json_response('PATCH', endpoint+"/"+inum, scopes, patch_operation)
+                    else:
+                        self.logger.debug('No patch operations needed.')
                 else:
                     self.logger.debug('POSTing object: {} to endpoint: {}', json_data, endpoint)
                     self._execute_with_json_response('POST', endpoint, scopes, json_data)
@@ -189,12 +201,6 @@ class ConfigAPIClient:
         scopes = 'https://jans.io/oauth/config/attributes.readonly https://jans.io/oauth/config/attributes.write'
         self._import_obj_by_key(endpoint, scopes, objects_folder)
 
-    def patch_attributes(self, objects_folder):
-        self.logger.debug('Patch attributes from {}', objects_folder)
-        endpoint = '/jans-config-api/api/v1/attributes'
-        scopes = 'https://jans.io/oauth/config/attributes.readonly https://jans.io/oauth/config/attributes.write'
-        self._patch_objs(endpoint, scopes, objects_folder)
-
 ############################
 # scopes operations
 #
@@ -216,12 +222,6 @@ class ConfigAPIClient:
         scopes = 'https://jans.io/oauth/config/scopes.write https://jans.io/oauth/config/scopes.readonly'
         self._import_obj_by_key(endpoint, scopes, objects_folder, 'id')
 
-    def patch_scopes(self, objects_folder):
-        self.logger.debug('Patch scopes from {}', objects_folder)
-        endpoint = '/jans-config-api/api/v1/scopes'
-        scopes = 'https://jans.io/oauth/config/scopes.write https://jans.io/oauth/config/scopes.readonly'
-        self._patch_objs(endpoint, scopes, objects_folder)
-
 ############################
 # Client operations
 #
@@ -241,12 +241,6 @@ class ConfigAPIClient:
         scopes = 'https://jans.io/oauth/config/openid/clients.readonly https://jans.io/oauth/config/openid/clients.write'
         self._import_obj_by_inum(endpoint, scopes, objects_folder)
 
-    def patch_clients(self, objects_folder):
-        self.logger.debug('Patch clients from {}', objects_folder)
-        endpoint = '/jans-config-api/api/v1/openid/clients'
-        scopes = 'https://jans.io/oauth/config/openid/clients.readonly https://jans.io/oauth/config/openid/clients.write'
-        self._patch_objs(endpoint, scopes, objects_folder)
-
 ############################
 # Script operations
 #
@@ -262,32 +256,27 @@ class ConfigAPIClient:
         scopes = 'https://jans.io/oauth/config/scripts.readonly https://jans.io/oauth/config/scripts.write'
         self._import_obj_by_inum(endpoint, scopes, objects_folder)
 
-    def patch_scripts(self, objects_folder):
-        self.logger.debug('Patch Script from {}', objects_folder)
-        endpoint = '/jans-config-api/api/v1/config/scripts'
-        scopes = 'https://jans.io/oauth/config/scripts.readonly https://jans.io/oauth/config/scripts.write'
-        self._patch_objs(endpoint, scopes, objects_folder)
 
 ############################
-# jans-auth-server/config
-#
-# patch config from jans-auth-server
+# jans modules configuration
 ############################
 
-    def patch_jans_auth_server_config(self, objects_folder):
-        self.logger.debug('Patch config from {}', objects_folder)
+    def import_auth_server_config(self, objects_folder):
+        self.logger.debug('Patch auth-server configuration from {}', objects_folder)
         endpoint = '/jans-config-api/api/v1/jans-auth-server/config'
         scopes = 'https://jans.io/oauth/jans-auth-server/config/properties.readonly https://jans.io/oauth/jans-auth-server/config/properties.write'
         self._patch_objs(endpoint, scopes, objects_folder, False)
 
-############################
-# jans-config-api/scim/scim-config
-#
-# patch config from scim module
-############################
 
-    def patch_scim_config(self, objects_folder):
-        self.logger.debug('Patch scim from {}', objects_folder)
+    def import_config_api_config(self, objects_folder):
+        self.logger.debug('Patch config-api configuration from {}', objects_folder)
+        endpoint = '/jans-config-api/api/v1/api-config'
+        scopes = 'https://jans.io/oauth/config/properties.write'
+        self._patch_objs(endpoint, scopes, objects_folder, False)
+
+
+    def import_scim_config(self, objects_folder):
+        self.logger.debug('Patch scim configuration from {}', objects_folder)
         endpoint = '/jans-config-api/scim/scim-config'
         scopes = 'https://jans.io/scim/config.readonly https://jans.io/scim/config.write'
         self._patch_objs(endpoint, scopes, objects_folder, False)

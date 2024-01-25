@@ -26,7 +26,7 @@ def run(logger, properties):
 
     config_api_client.import_clients("./customization/clients")
 
-    config_api_client.patch_jans_auth_server_config("./customization/jans_auth_server")
+    config_api_client.import_auth_server_config("./customization/jans_auth_server")
 
 
 if __name__ == "__main__":
