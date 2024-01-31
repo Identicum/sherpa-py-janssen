@@ -128,27 +128,33 @@ class ConfigAPIClient:
                 except:
                     self.logger.debug("Object {} not present in jans", query_endpoint)
                 if current_jans_obj != {}:
-                    self.logger.debug('Current object: {}', current_jans_obj)
-                    patch_operation = []
-                    for attributeName, attributeValue in json_data.items():
-                        self.logger.debug('Attr {} with Value {} Type {}', attributeName, attributeValue, type(attributeValue))
-                        if current_jans_obj[attributeName] != attributeValue:
-                            if type(attributeValue) is dict:
-                                for childName, childValue in json_data["attributes"].items():
-                                    self.logger.debug('Attributes section. Key {} Value {}', childName, childValue)
-                                    op = dict(op="replace", path="/"+attributeName+"/"+childName, value=childValue)
-                                    patch_operation.append(op)
-                            else:
-                                op = dict(op="replace", path="/"+attributeName, value=attributeValue)
-                                patch_operation.append(op)
-                    if len(patch_operation) > 0:
-                        self.logger.debug('The operations patch is {}', patch_operation)
-                        self._execute_with_json_response('PATCH', endpoint+"/"+inum, scopes, patch_operation)
+                    self.logger.debug('Object already exists. Starting update process.')
+                    patch_operations = self._get_patch_operations(json_data, current_jans_obj)
+                    if len(patch_operations) > 0:
+                        self.logger.debug('The operations patch is {}', patch_operations)
+                        self._execute_with_json_response('PATCH', endpoint+"/"+inum, scopes, patch_operations)
                     else:
                         self.logger.debug('No patch operations needed.')
                 else:
                     self.logger.debug('POSTing object: {} to endpoint: {}', json_data, endpoint)
                     self._execute_with_json_response('POST', endpoint, scopes, json_data)
+    
+    def _get_patch_operations(self, json_data, current_jans_obj):
+        self.logger.debug('JSON from file: {}', json_data)
+        self.logger.debug('Current object: {}', current_jans_obj)
+        patch_operations = []
+        for attributeName, attributeValue in json_data.items():
+            self.logger.debug('Attr {} with Value {} Type {}', attributeName, attributeValue, type(attributeValue))
+            if current_jans_obj[attributeName] != attributeValue:
+                if type(attributeValue) is dict:
+                    for childName, childValue in json_data["attributes"].items():
+                        self.logger.debug('Attributes section. Key {} Value {}', childName, childValue)
+                        op = dict(op="replace", path="/"+attributeName+"/"+childName, value=childValue)
+                        patch_operations.append(op)
+                else:
+                    op = dict(op="replace", path="/"+attributeName, value=attributeValue)
+                    patch_operations.append(op)
+        return patch_operations
 
     def _build_query_endpoint(self, endpoint, inum):
         if endpoint == '/jans-config-api/api/v1/config/scripts':
