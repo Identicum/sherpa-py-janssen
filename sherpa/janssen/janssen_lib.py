@@ -60,13 +60,16 @@ class ConfigAPIClient:
         
     def _get_files_path(self, objects_folder, extension='.json'):
         files = list()
-        for directory_entry in sorted(os.scandir(objects_folder), key=lambda path: path.name):
-            file_path = directory_entry.path
-            if directory_entry.is_file() and file_path.endswith(extension):
-                temp_file = '{}/{}'.format(self.temp_dir,os.path.basename(file_path))
-                shutil.copyfile(file_path, temp_file)
-                self.properties.replace(temp_file)
-                files.append(temp_file)
+        try:
+            for directory_entry in sorted(os.scandir(objects_folder), key=lambda path: path.name):
+                file_path = directory_entry.path
+                if directory_entry.is_file() and file_path.endswith(extension):
+                    temp_file = '{}/{}'.format(self.temp_dir,os.path.basename(file_path))
+                    shutil.copyfile(file_path, temp_file)
+                    self.properties.replace(temp_file)
+                    files.append(temp_file)
+        except:
+            self.logger.debug("Folder {} is not present", objects_folder)
         return files
 
     def _load_json(self, json_file):
