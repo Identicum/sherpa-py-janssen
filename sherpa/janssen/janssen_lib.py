@@ -18,11 +18,11 @@ from pathlib import Path
 
 class ConfigAPIClient:
 
-    def __init__(self, logger, local_properties):
+    def __init__(self, logger, properties, verify=True):
         self.logger = logger
-        self.properties = local_properties
+        self.properties = properties
         self.base_uri = 'https://{}'.format(self.properties.get('idp_hostname'))
-        self.oidc_client = OIDCClient(self.base_uri, logger, verify=False)
+        self.oidc_client = OIDCClient(self.base_uri, logger, verify=verify)
         self.temp_dir = './work'
         shutil.rmtree(self.temp_dir, ignore_errors=True)
         os.mkdir(self.temp_dir, 0o744)
@@ -47,9 +47,9 @@ class ConfigAPIClient:
         body = json.dumps(json_obj)
         self.logger.trace('OPERATION: {}, URL: {}, HEADERS: {}, DATA: {}', operation, url, headers, body)
         if operation == 'GET':
-            response = requests.request(operation, url, headers=headers, verify=False)
+            response = requests.request(operation, url, headers=headers, verify=self.verify)
         else:
-            response = requests.request(operation, url, headers=headers, data=body, verify=False)
+            response = requests.request(operation, url, headers=headers, data=body, verify=self.verify)
         http.validate_response(response, self.logger, 'Execute Failed - HTTP Code: {}'.format(response.status_code))
         json_obj = {} if operation == 'DELETE' else response.json()
         self.logger.trace('{} JSON response - {}', operation, json_obj)

@@ -8,7 +8,7 @@ from setuptools import setup
 
 setup(
     name='sherpa-py-janssen',
-    version='1.0.20240123',
+    version='1.0.20240215',
     description='Python utilities for Janssen',
     url='git@github.com:Identicum/sherpa-py-janssen.git',
     author='Identicum',
