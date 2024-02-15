@@ -7,7 +7,7 @@ from sherpa.janssen.janssen_lib import ConfigAPIClient
 
 def main():
     properties = Properties("./local.properties", "./default.properties")
-    logger = Logger(os.path.basename(__file__), local_properties.get("idp_deployment_log_level"), local_properties.get("idp_deployment_log_file"))
+    logger = Logger(os.path.basename(__file__), properties.get("idp_deployment_log_level"), properties.get("idp_deployment_log_file"))
     run(logger, properties)
 
 
