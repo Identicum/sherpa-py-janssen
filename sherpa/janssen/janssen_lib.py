@@ -24,6 +24,7 @@ class ConfigAPIClient:
         self.base_uri = 'https://{}'.format(self.properties.get('idp_hostname'))
         self.oidc_client = OIDCClient(self.base_uri, logger, verify=verify)
         self.temp_dir = './work'
+        self.verify = verify
         shutil.rmtree(self.temp_dir, ignore_errors=True)
         os.mkdir(self.temp_dir, 0o744)
 
