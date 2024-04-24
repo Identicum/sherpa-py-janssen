@@ -133,7 +133,7 @@ class ConfigAPIClient:
                     self.logger.debug("Object {} not present in jans", query_endpoint)
                 if current_jans_obj != {}:
                     self.logger.debug('Object already exists. Starting update process.')
-                    patch_operations = self._get_patch_operations(json_data, current_jans_obj)
+                    patch_operations = self._get_patch_operations(endpoint, json_data, current_jans_obj)
                     if len(patch_operations) > 0:
                         self.logger.debug('The operations patch is {}', patch_operations)
                         self._execute_with_json_response('PATCH', endpoint+"/"+inum, scopes, patch_operations)
@@ -143,10 +143,17 @@ class ConfigAPIClient:
                     self.logger.debug('POSTing object: {} to endpoint: {}', json_data, endpoint)
                     self._execute_with_json_response('POST', endpoint, scopes, json_data)
     
-    def _get_patch_operations(self, json_data, current_jans_obj):
+    def _get_patch_operations(self, endpoint, json_data, current_jans_obj):
         self.logger.debug('JSON from file: {}', json_data)
         self.logger.debug('Current object: {}', current_jans_obj)
         patch_operations = []
+
+        self.logger.debug("Executing patch exceptions - https://github.com/JanssenProject/jans/issues/8370")
+        if endpoint == '/jans-config-api/api/v1/openid/clients':
+            self.logger.debug("Can not modify clientSecret in PATCH operation")
+            # json_data.pop("clientSecret", None)
+            # current_jans_obj.pop("clientSecret", None)
+
         for attributeName, attributeValue in json_data.items():
             self.logger.debug('Attr {} with Value {} Type {}', attributeName, attributeValue, type(attributeValue))
             if current_jans_obj[attributeName] != attributeValue:
