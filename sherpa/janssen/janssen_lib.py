@@ -151,8 +151,8 @@ class ConfigAPIClient:
         self.logger.debug("Executing patch exceptions - https://github.com/JanssenProject/jans/issues/8370")
         if endpoint == '/jans-config-api/api/v1/openid/clients':
             self.logger.debug("Can not modify clientSecret in PATCH operation")
-            # json_data.pop("clientSecret", None)
-            # current_jans_obj.pop("clientSecret", None)
+            json_data.pop("clientSecret", None)
+            current_jans_obj.pop("clientSecret", None)
 
         for attributeName, attributeValue in json_data.items():
             self.logger.debug('Attr {} with Value {} Type {}', attributeName, attributeValue, type(attributeValue))
