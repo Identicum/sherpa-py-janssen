@@ -56,7 +56,7 @@ class ConfigAPIClient:
         self.logger.trace('{} JSON response - {}', operation, json_obj)
         return json_obj
 
-    def _get_object(self, endpoint, inum, scopes):
+    def _get_object(self, endpoint, scopes):
         return self._execute_with_json_response("GET", endpoint, scopes)
         
     def _get_files_path(self, objects_folder, extension='.json'):
@@ -229,9 +229,9 @@ class ConfigAPIClient:
 
     def get_scope(self, inum):
         self.logger.debug('Getting scope {}', inum)
-        endpoint = '/jans-config-api/api/v1/scopes'
+        endpoint = '/jans-config-api/api/v1/scopes' + inum
         scopes = 'https://jans.io/oauth/config/scopes.readonly'
-        self._get_object(endpoint, inum, scopes)
+        self._get_object(endpoint, scopes)
 
     def import_scopes(self, objects_folder):
         self.logger.debug('Import scopes from {}', objects_folder)
@@ -250,7 +250,7 @@ class ConfigAPIClient:
         self.logger.debug('Getting client {}', inum)
         endpoint = '/jans-config-api/api/v1/openid/clients/' + inum
         scopes = 'https://jans.io/oauth/config/openid/clients.readonly'
-        self._get_object(endpoint, inum, scopes)
+        self._get_object(endpoint, scopes)
 
     def import_clients(self, objects_folder):
         self.logger.debug('Import clients from {}', objects_folder)
@@ -278,6 +278,13 @@ class ConfigAPIClient:
 # jans modules configuration
 ############################
 
+    def get_auth_server_config(self):
+        self.logger.debug('Getting auth-server config')
+        endpoint = '/jans-config-api/api/v1/jans-auth-server/config'
+        scopes = 'https://jans.io/oauth/jans-auth-server/config/properties.readonly'
+        self._get_object(endpoint, scopes)
+
+
     def import_auth_server_config(self, objects_folder):
         self.logger.debug('Patch auth-server configuration from {}', objects_folder)
         endpoint = '/jans-config-api/api/v1/jans-auth-server/config'
@@ -285,11 +292,25 @@ class ConfigAPIClient:
         self._patch_objs(endpoint, scopes, objects_folder, False)
 
 
+    def get_config_api_config(self):
+        self.logger.debug('Getting config-api config')
+        endpoint = '/jans-config-api/api/v1/api-config'
+        scopes = 'https://jans.io/oauth/config/properties.readonly'
+        self._get_object(endpoint, scopes)
+
+
     def import_config_api_config(self, objects_folder):
         self.logger.debug('Patch config-api configuration from {}', objects_folder)
         endpoint = '/jans-config-api/api/v1/api-config'
-        scopes = 'https://jans.io/oauth/config/properties.write'
+        scopes = 'https://jans.io/oauth/config/properties.readonly https://jans.io/oauth/config/properties.write'
         self._patch_objs(endpoint, scopes, objects_folder, False)
+
+
+    def get_scim_config(self):
+        self.logger.debug('Getting scim config')
+        endpoint = '/jans-config-api/scim/scim-config'
+        scopes = 'https://jans.io/scim/config.readonly'
+        self._get_object(endpoint, scopes)
 
 
     def import_scim_config(self, objects_folder):
