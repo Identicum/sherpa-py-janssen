@@ -14,6 +14,7 @@ import shutil
 from sherpa.utils.clients import OIDCClient
 from sherpa.utils import http
 from pathlib import Path
+from importlib.metadata import version
 
 
 class ConfigAPIClient:
@@ -21,6 +22,7 @@ class ConfigAPIClient:
     def __init__(self, logger, properties, verify=True):
         self.logger = logger
         self.properties = properties
+        self.logger.debug("ConfigAPIClient version: " + version("sherpa-py-janssen"))
         self.base_uri = 'https://{}'.format(self.properties.get('idp_hostname'))
         self.oidc_client = OIDCClient(self.base_uri, logger, verify=verify)
         self.temp_dir = './work'
