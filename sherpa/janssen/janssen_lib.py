@@ -11,6 +11,8 @@ import json
 import requests
 import os
 import shutil
+import zipfile
+import time
 from sherpa.utils.clients import OIDCClient
 from sherpa.utils import http
 from pathlib import Path
@@ -30,33 +32,41 @@ class ConfigAPIClient:
         shutil.rmtree(self.temp_dir, ignore_errors=True)
         os.mkdir(self.temp_dir, 0o744)
 
-    def _execute_with_json_response(self, operation, endpoint, scopes, json_obj={}):
+    def _execute_with_json_response(self, operation, endpoint, scopes, payload={}):
         self.logger.debug('{} {}', operation, endpoint)
         url = '{}{}'.format(self.base_uri, endpoint)
         self.logger.trace('Getting acc_token for operation')
         client_id = self.properties.get('configapi_client_id')
         client_secret = self.properties.get('configapi_client_secret')
         b64_creds = http.to_base64_creds(client_id, client_secret)
+        is_agama_deploy = operation == 'POST' and 'agama-deployment' in endpoint
         params = {
             'grant_type': 'client_credentials',
             'scope': scopes
         }
         acc_token = self.oidc_client.request_to_token_endpoint(b64_creds, params).get('access_token')
-        content_type = 'application/json' if operation != 'PATCH' else 'application/json-patch+json'
+        if is_agama_deploy:
+            content_type = "application/zip"
+            with open(payload, "rb") as file:
+                body = file.read()
+        else:
+            content_type = 'application/json' if operation != 'PATCH' else 'application/json-patch+json'
+            body = json.dumps(payload)
+
         headers = {
             'Authorization': 'Bearer {}'.format(acc_token),
             'Content-Type': content_type
         }
-        body = json.dumps(json_obj)
+
         self.logger.trace('OPERATION: {}, URL: {}, HEADERS: {}, DATA: {}', operation, url, headers, body)
         if operation == 'GET':
             response = requests.request(operation, url, headers=headers, verify=self.verify)
         else:
             response = requests.request(operation, url, headers=headers, data=body, verify=self.verify)
         http.validate_response(response, self.logger, 'Execute Failed - HTTP Code: {}'.format(response.status_code))
-        json_obj = {} if operation == 'DELETE' else response.json()
-        self.logger.trace('{} JSON response - {}', operation, json_obj)
-        return json_obj
+        payload = {} if operation == 'DELETE' or is_agama_deploy else response.json()
+        self.logger.trace('{} JSON response - {}', operation, payload)
+        return payload
 
     def _get_object(self, endpoint, scopes):
         return self._execute_with_json_response("GET", endpoint, scopes)
@@ -74,6 +84,9 @@ class ConfigAPIClient:
         except:
             self.logger.debug("Folder {} is not present", objects_folder)
         return files
+
+    def _list_folders_objs(self, path):
+        return [folder for folder in Path(path).iterdir() if folder.is_dir()]
 
     def _load_json(self, json_file):
         json_data = json.load(json_file)
@@ -93,8 +106,11 @@ class ConfigAPIClient:
         query_endpoint = '{}?pattern={}'.format(endpoint,key_val)
         query_list = self._execute_with_json_response('GET', query_endpoint, scopes)
         if not isinstance(query_list, list):
-            query_list = query_list.get('data')
-        search_result_list = [] if query_list is None else [ x for x in query_list if x.get(key) == key_val]
+            query_list_data = query_list.get('data')
+            if query_list_data is None:
+                #Jans 1.1.5
+                query_list_data = query_list.get('entries')
+        search_result_list = [] if query_list_data is None else [ x for x in query_list_data if x.get(key) == key_val]
         return search_result_list
 
     def _import_obj_by_key(self, endpoint, scopes, objects_folder, key='name'):
@@ -144,7 +160,49 @@ class ConfigAPIClient:
                 else:
                     self.logger.debug('POSTing object: {} to endpoint: {}', json_data, endpoint)
                     self._execute_with_json_response('POST', endpoint, scopes, json_data)
-    
+
+    def _import_agama_projects(self, endpoint, scopes, objects_folder, wait_time):
+        self.logger.debug("starting agama project import")
+        folders_objs = self._list_folders_objs(objects_folder)
+        self.logger.trace("folders: {}", folders_objs)
+        self.logger.trace("Get configs and build zip files for deploy")
+        agama_scripts_configs = []
+        for folder in folders_objs:
+            folder_name = folder.name
+            folder_path = str(folder)
+
+            project_json_file_path = "{}/{}".format(folder_path,'project.json')
+            with open(project_json_file_path) as json_file:
+                self.logger.trace("Extracting project_json for {}", folder_name)
+                project_json_obj = self._load_json(json_file)
+                self.logger.trace("config for {} is: {}", folder_name, json.dumps(project_json_obj))
+                agama_scripts_configs.append(project_json_obj)
+            agama_project_name = project_json_obj.get("projectName")
+
+            self.logger.trace("building zip file for: {}", folder_name)
+            zip_file_path = "{}/{}.zip".format(self.temp_dir, folder_name)
+            with zipfile.ZipFile(zip_file_path, 'w', zipfile.ZIP_DEFLATED) as zipf:
+                for root, dirs, files in os.walk(folder_path):
+                    dirs[:] = [d for d in dirs if not d.startswith('.')] # magic that removes hidden folders
+                    for file in files:
+                        file_path = Path(root) / file
+                        zipf.write(file_path, file_path.relative_to(folder_path))
+            self.logger.trace("ZIP agama file created for: {}", folder_name)
+
+            self.logger.trace("POST agama project {}", agama_project_name)
+            self._execute_with_json_response('POST', "{}/{}".format(endpoint, agama_project_name), scopes, zip_file_path)
+
+        self.logger.trace("All agama projects posted, wait time until proceed with configs is: {} secs", wait_time)
+        time.sleep(wait_time)
+
+        self.logger.trace("Proceed with PUT configs for agama projects")
+        for agama_script_config in agama_scripts_configs:
+            agama_project_name = agama_script_config.get("projectName")
+            configs = agama_script_config.get('configs')
+            self._execute_with_json_response('PUT', "{}/configs/{}".format(endpoint, agama_project_name), scopes, configs)
+
+        self.logger.debug("Agama projects imported successfully")
+
     def _get_patch_operations(self, endpoint, json_data, current_jans_obj):
         self.logger.debug('JSON from file: {}', json_data)
         self.logger.debug('Current object: {}', current_jans_obj)
@@ -191,6 +249,7 @@ class ConfigAPIClient:
                 for id_scope in id_scopes:
                     search_result_list = self._query_by_pattern('/jans-config-api/api/v1/scopes', 'https://jans.io/oauth/config/scopes.readonly', 'id', id_scope)
                     self.logger.trace("replacing scope id {} ", id_scope)
+                    self.logger.trace("search_result_list: {}",search_result_list)
                     inum = search_result_list[0].get('dn')
                     client_scopes.append(inum)
                     client_scopes.remove(id_scope)
@@ -275,6 +334,19 @@ class ConfigAPIClient:
         scopes = 'https://jans.io/oauth/config/scripts.readonly https://jans.io/oauth/config/scripts.write'
         self._import_obj_by_inum(endpoint, scopes, objects_folder)
 
+############################
+# agama scripts operations
+#
+# folder structure must respect https://docs.jans.io/v1.1.5/agama/gama-format/
+# project.json must have config section (can be empty) it is required to PUT step on function
+# Agama projects takes 30 secs to reload average after modification
+############################
+
+    def import_agama_scripts(self, objects_folder, wait_time=30):
+        self.logger.debug('Import Agama Script from {}', objects_folder)
+        endpoint = '/jans-config-api/api/v1/agama-deployment'
+        scopes = 'https://jans.io/oauth/config/agama.readonly https://jans.io/oauth/config/agama.write https://jans.io/oauth/config/agama.delete'
+        self._import_agama_projects(endpoint, scopes, objects_folder, wait_time)
 
 ############################
 # jans modules configuration
