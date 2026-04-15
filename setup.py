@@ -1,5 +1,5 @@
 # sherpa-py-janssen is available under the MIT License. https://github.com/Identicum/sherpa-py-janssen/
-# Copyright (c) 2024, Identicum - https://identicum.com/
+# Copyright (c) 2026, Identicum - https://identicum.com/
 #
 # Author: Gustavo J Gallardo - ggallard@identicum.com
 #
@@ -8,7 +8,7 @@ from setuptools import setup
 
 setup(
     name='sherpa-py-janssen',
-    version='1.0.20240216',
+    version='1.1.0',
     description='Python utilities for Janssen',
     url='git@github.com:Identicum/sherpa-py-janssen.git',
     author='Identicum',
